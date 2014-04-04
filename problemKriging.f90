@@ -4,7 +4,7 @@ program CrossValidationKriging
   implicit none  
   include 'mpif.h'
 
-  integer,parameter::ndim=2
+  integer,parameter::ndim=4
   integer::fct,initpts,ncyc,npts,stat,nseed,ierr
   real*8::DAT,cverrout
   !  real*8::sample(ndim,500)  
@@ -32,7 +32,7 @@ program CrossValidationKriging
 
   stat=0
 
-  do nfunc=3,2,-1
+  do nfunc=2,2
 
      if (nfunc.eq.1) fct=0
      if (nfunc.eq.2) fct=2
@@ -48,27 +48,39 @@ program CrossValidationKriging
      !0=exp,2=runge,3=rosen
 
      if (id_proc.eq.0) then
-
-        if (fct.eq.0) open(unit=37,file='CVKrigfct00dim2.his',form='formatted',status='replace')
-        if (fct.eq.2) open(unit=37,file='CVKrigfct02dim2.his',form='formatted',status='replace')
-        if (fct.eq.3) open(unit=37,file='CVKrigfct03dim2.his',form='formatted',status='replace')
+!!$
+!!$        if (fct.eq.0) open(unit=37,file='CVKrigfct00dim2.his',form='formatted',status='replace')
+!!$        if (fct.eq.2) open(unit=37,file='CVKrigfct02dim2.his',form='formatted',status='replace')
+!!$        if (fct.eq.3) open(unit=37,file='CVKrigfct03dim2.his',form='formatted',status='replace')
      end if
 
-     if (id_proc.eq.0) write(37,'(a)') 'npts MeanCVE MaxCVE Nmodels'
-     nmodel=0
-     do npts=5,150,5
+ !    if (id_proc.eq.0) write(37,'(a)') 'npts MeanCVE MaxCVE Nmodels'
+  !   nmodel=0
+   
+     do npts=300,300
 
         allocate(sample(ndim,npts))
+!        allocate(samplewithIdx(ndim,npts))
         !        print*,"allocate"
 
         ncyc=npts
         initpts=npts
 
+        
+        
         if (id_proc.eq.0) then
 
-           sample(:,1)=0.5
-           call get_seed(nseed)
-           call latin_random(ndim,npts-1,nseed,sample(:,2:npts))       
+           !Reading the data file
+
+           open(unit=54,file='Training.csv',form='formatted')
+           do i=1,300
+              read(54,*)sample(1,i),sample(2,i),sample(3,i),sample(4,i) 
+          end do
+           close(54)
+
+
+           !           call get_seed(nseed)
+           !           call latin_random(ndim,npts-1,nseed,sample(:,2:npts))       
 
         end if
 
@@ -80,23 +92,23 @@ program CrossValidationKriging
         CVE(:)=0.0
         MaxCVE=0.0
 
-        do k=1,npts !loop over all points to find the CVE and finally MCVE
-
+        !!do k=1,npts !loop over all points to find the CVE and finally MCVE
+k=1
            testpoint(:)=sample(:,k) !k-th point is the test point
            knot=k
 
            nidx=0
 
-           do i=1,npts
+   !        do i=1,npts
 
               ! Check for all points and see if they dont match the test point and store it in the training vector to be passed to kriging
 
-              if (i.ne.knot) then
-                 nidx=nidx+1
-                 Tsample(:,nidx)=sample(:,i)
-              end if
+        !      if (i.ne.knot) then
+       !          nidx=nidx+1
+      !           Tsample(:,nidx)=sample(:,i)
+     !         end if
 
-           end do
+    !       end do
 
            ! Now we have the test and training points
 
@@ -111,27 +123,27 @@ program CrossValidationKriging
            !      print*,npts-1
 
            cverrout=0.0
-           nmodel=nmodel+1
-           call Krigingestimate(ndim,ndim,fct,DAT,initpts-1,ncyc-1,npts-1,stat,Tsample(:,1:npts-1),testpoint,cverrout)
+!           nmodel=nmodel+1
+           call Krigingestimate(ndim,ndim,fct,DAT,initpts,ncyc,npts,stat,Tsample(:,1:npts),testpoint,cverrout)
            CVE(k)=cverrout
 
            !stop
            !        print*,"after k"
            !           print*,'CVE',k,cve(k)
 
-           if (CVE(K).gt.MaxCVE) MaxCVE=CVE(k)
+!           if (CVE(K).gt.MaxCVE) MaxCVE=CVE(k)
 
-        end do
+!        end do
 
-        MCVE=0.0
-        do j=1,npts
-           MCVE=MCVE+CVE(j)
-        end do
-        MCVE=MCVE/dble(npts)
+!        MCVE=0.0
+!        do j=1,npts
+!           MCVE=MCVE+CVE(j)
+!        end do
+!        MCVE=MCVE/dble(npts)
 
 
-        if (id_proc.eq.0) write(37,'(i8,2e15.5,i8)'), npts, MCVE,MaxCVE,nmodel
-        if (id_proc.eq.0) print*,'NPTS:',npts,'MCVE:',MCVE,MaxCVE,nmodel
+!       if (id_proc.eq.0) write(37,'(i8,2e15.5,i8)'), npts, MCVE,MaxCVE,nmodel
+!        if (id_proc.eq.0) print*,'NPTS:',npts,'MCVE:',MCVE,MaxCVE,nmodel
 
 
         call MPI_Barrier(MPI_COMM_WORLD,ierr)
